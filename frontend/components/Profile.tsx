@@ -66,22 +66,12 @@ const Profile: React.FC<ProfileProps> = ({ data, updateData }) => {
     setSendingInvite(true);
     setInviteResult(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      const res = await fetch(
-        'http://localhost:3001/api/send-referral-invite',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email: inviteEmail.trim(), referrerCode: user.affiliateCode }),
-        }
-      );
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        setInviteResult({ type: 'error', message: json.error ?? 'Failed to send invite.' });
+      const { data, error } = await supabase.functions.invoke('send-referral-invite', {
+        body: { email: inviteEmail.trim(), referrerCode: user.affiliateCode }
+      });
+      
+      if (error) {
+        setInviteResult({ type: 'error', message: error.message ?? 'Failed to send invite.' });
       } else {
         setInviteResult({ type: 'success', message: `Invite sent to ${inviteEmail.trim()}!` });
         setInviteEmail('');
