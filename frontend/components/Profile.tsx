@@ -70,12 +70,11 @@ const Profile: React.FC<ProfileProps> = ({ data, updateData }) => {
       const token = sessionData?.session?.access_token;
 
       const res = await fetch(
-        'https://frhaqssmnzqqvvecnrqe.supabase.co/functions/v1/send-referral-invite',
+        'http://localhost:3001/api/send-referral-invite',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token ?? ''}`,
           },
           body: JSON.stringify({ email: inviteEmail.trim(), referrerCode: user.affiliateCode }),
         }

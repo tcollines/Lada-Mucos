@@ -109,6 +109,22 @@ app.post('/api/persist', async (req, res) => {
   }
 });
 
+// POST endpoint to handle email invites locally (Mock)
+app.post('/api/send-referral-invite', async (req, res) => {
+  const { email, referrerCode } = req.body;
+  if (!email || !referrerCode) {
+    return res.status(400).json({ error: 'Email and referrerCode are required.' });
+  }
+
+  // MOCK: In a real app, integrate Nodemailer, SendGrid, Resend, etc. here.
+  console.log(`[MOCK EMAIL] Sending referral invite to: ${email} with code: ${referrerCode}`);
+  
+  // Add an intentional slight delay to simulate network/email sending
+  await new Promise(resolve => setTimeout(resolve, 800));
+
+  res.json({ success: true, message: 'Invite sent successfully.' });
+});
+
 app.listen(port, () => {
   console.log(`Backend server listening on port ${port}`);
 });
