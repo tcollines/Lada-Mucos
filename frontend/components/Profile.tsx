@@ -49,7 +49,7 @@ const Profile: React.FC<ProfileProps> = ({ data, updateData }) => {
   const [uploadingCover, setUploadingCover] = useState(false);
 
   // Referral state
-  const referralLink = `https://lada.ug/?ref=${user.affiliateCode}#/signup`;
+  const referralLink = `${window.location.origin}/?ref=${user.affiliateCode}#/signup`;
   const [copied, setCopied] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [sendingInvite, setSendingInvite] = useState(false);
@@ -67,7 +67,7 @@ const Profile: React.FC<ProfileProps> = ({ data, updateData }) => {
     setInviteResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('send-referral-invite', {
-        body: { email: inviteEmail.trim(), referrerCode: user.affiliateCode }
+        body: { email: inviteEmail.trim(), referrerCode: user.affiliateCode, origin: window.location.origin }
       });
       
       if (error) {
