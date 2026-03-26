@@ -42,7 +42,8 @@ export interface PersistenceChange {
 
 export const fetchAllData = async (): Promise<Partial<AppState>> => {
   try {
-    const response = await fetch('http://localhost:3001/api/data');
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const response = await fetch(`${apiUrl}/api/data`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -282,7 +283,8 @@ export const persistToSupabase = async (state: AppState, lastChange?: Persistenc
         delete mappedData.max_amount;
       }
 
-      const response = await fetch('http://localhost:3001/api/persist', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/persist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, data: mappedData })
