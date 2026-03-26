@@ -1,6 +1,5 @@
 
 import { User, UserRole, Wallet, Transaction, TransactionType, InvestmentOpportunity, Investment, Loan, Group, FeedPost, Notification, ChatMessage, WithdrawalRequest, LoanOffer, PreRegistration } from './types';
-import { supabase } from './supabase';
 
 export interface AppState {
   currentUser: User | null;
@@ -43,33 +42,24 @@ export interface PersistenceChange {
 
 export const fetchAllData = async (): Promise<Partial<AppState>> => {
   try {
-    const [
-      { data: users },
-      { data: wallets },
-      { data: transactions },
-      { data: opportunities },
-      { data: investments },
-      { data: loansData },
-      { data: groups },
-      { data: posts },
-      { data: notifications },
-      { data: messages },
-      { data: withdrawals },
-      { data: preRegistrations }
-    ] = await Promise.all([
-      supabase.from('users').select('*'),
-      supabase.from('wallets').select('*'),
-      supabase.from('transactions').select('*'),
-      supabase.from('investment_opportunities').select('*'),
-      supabase.from('investments').select('*'),
-      supabase.from('loans').select('*'),
-      supabase.from('groups').select('*'),
-      supabase.from('feed_posts').select('*'),
-      supabase.from('notifications').select('*'),
-      supabase.from('chat_messages').select('*'),
-      supabase.from('withdrawal_requests').select('*'),
-      supabase.from('pre_registrations').select('*')
-    ]);
+    const response = await fetch('http://localhost:3001/api/data');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const {
+      users,
+      wallets,
+      transactions,
+      opportunities,
+      investments,
+      loansData,
+      groups,
+      posts,
+      notifications,
+      messages,
+      withdrawals,
+      preRegistrations
+    } = await response.json();
 
     const mappedUsers = (users || []).map(u => ({
       id: u.id,
@@ -292,8 +282,13 @@ export const persistToSupabase = async (state: AppState, lastChange?: Persistenc
         delete mappedData.max_amount;
       }
 
-      const { data: result, error } = await supabase.from(dbTable).upsert(mappedData);
-      if (error) throw new Error(error.message);
+      const response = await fetch('http://localhost:3001/api/persist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table, data: mappedData })
+      });
+      const result = await response.json();
+      if (!response.ok || result.error) throw new Error(result.error || `HTTP error! status: ${response.status}`);
 
     } catch (err: any) {
       console.error(`Failed to persist to ${table}:`, err?.message || err);
