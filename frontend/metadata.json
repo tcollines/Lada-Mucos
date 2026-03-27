@@ -1,0 +1,8 @@
+{
+  "name": "Lada Multipurpose SACCO",
+  "description": "A comprehensive SACCO management platform for Lada Multipurpose, featuring investments, P2P lending, group chats, and automated wallet management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
