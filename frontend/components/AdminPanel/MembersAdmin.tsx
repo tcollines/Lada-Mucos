@@ -43,7 +43,7 @@ const MembersAdmin: React.FC<MembersAdminProps> = ({ data, updateData }) => {
         const name = row['Name'] || row['name'] || row['Full Name'] || row['fullName'];
         const email = row['Email'] || row['email'] || `user${Date.now()}_${index}@lada.ug`;
         const phone = row['Phone'] || row['phone'] || row['Contact'] || row['contact'] || '';
-        const amountStr = row['Amount'] || row['amount'] || row['Fee'] || row['fee'] || row['Amount Paid'] || '0';
+        const amountStr = row['Amount'] || row['amount'] || row['Fee'] || row['fee'] || row['Amount Paid'] || row['amount_paid'] || '0';
 
         let amountPaid = 0;
         if (typeof amountStr === 'number') {

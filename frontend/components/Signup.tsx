@@ -545,19 +545,19 @@ const PaymentModal: React.FC<{
 
         <div className="space-y-4">
           <button
-            onClick={onPayNow}
-            className="w-full bg-sac-green text-white p-4 rounded-2xl font-bold flex items-center justify-between hover:bg-emerald-800 transition-all shadow-lg shadow-emerald-900/10 group"
+            disabled
+            className="w-full bg-gray-300 text-gray-500 p-4 rounded-2xl font-bold flex items-center justify-between cursor-not-allowed transition-all"
+            title="Payment Gateway is currently unavailable"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-400/20 rounded-full flex items-center justify-center">
                 <CheckCircle2 size={20} />
               </div>
               <div className="text-left">
-                <div className="text-lg">Pay Now</div>
-                <div className="text-xs text-white/80 font-normal">Redirect to Payment Gateway</div>
+                <div className="text-lg">Pay Now (Unavailable)</div>
+                <div className="text-xs text-gray-500 font-normal">Payment Gateway currently down</div>
               </div>
             </div>
-            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
           </button>
 
           <button
