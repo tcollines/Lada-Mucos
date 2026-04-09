@@ -124,14 +124,15 @@ const Signup: React.FC<SignupProps> = ({ data, updateData }) => {
     // If they chose Pay Later, and they don't have a claimed pre-reg that covers it, they are unpaid
     const isFullyPaid = isPayingNow || (claimedPreReg && claimedPreReg.amountPaid >= MEMBERSHIP_FEE_UGX);
 
+    const { referralCode, ...restFormData } = formData;
     const newUser = {
-      ...formData,
+      ...restFormData,
       id: userId,
       role: UserRole.MEMBER,
       membershipPaid: isFullyPaid,
       walletId: walletId,
       affiliateCode: 'LADA-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-      referredBy: formData.referralCode,
+      referredBy: referralCode,
       creditScore: 50,
       createdAt: new Date().toISOString()
     };
