@@ -234,7 +234,9 @@ export const persistToSupabase = async (state: AppState, lastChange?: Persistenc
         if (key === 'meta' || key === 'discussion') continue;
 
 
-        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        let snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        if (key === 'balanceUGX') snakeKey = 'balance_ugx';
+        
         if (value instanceof File) continue;
 
         if (key === 'images' && Array.isArray(value)) {
