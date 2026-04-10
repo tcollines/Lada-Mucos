@@ -146,7 +146,8 @@ const Signup: React.FC<SignupProps> = ({ data, updateData }) => {
         email: formData.email,
         password: formData.password,
         options: {
-          data: userMetadata
+          data: userMetadata,
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
 
