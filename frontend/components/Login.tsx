@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
+import { supabase } from '../supabase';
 
 interface LoginProps {
   data: any;
@@ -27,24 +28,52 @@ const Login: React.FC<LoginProps> = ({ data, updateData }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const user = data.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
     
-    // Check credentials:
     // 1. Admin hardcoded login
-    // 2. Member login: Using the user's chosen password (mapped from NIN column in store.ts)
     const isAdmin = email.toLowerCase() === 'admin@lada.ug' && password === 'admin123';
-    const isMember = user && (password === user.password || password === '123456');
+    // 2. Fallback check for manually imported members without Supabase Auth accounts
+    const isLegacyMember = user && (password === user.password || password === '123456');
 
-    if (isAdmin || isMember) {
+    if (isAdmin) {
       updateData((prev: any) => ({ 
         ...prev, 
         currentUser: user || data.users.find((u:any) => u.email === 'admin@lada.ug') 
       }));
       navigate('/');
-    } else {
+      return;
+    }
+
+    try {
+      // 3. Primary check: Use Supabase Auth for all new users
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (!error && authData?.session) {
+         // App.tsx's onAuthStateChange listener will automatically detect the SIGNED_IN event.
+         // If they don't exist in the users table yet, App.tsx will seamlessly initialize their DB profile using their user_metadata.
+         // For instant feedback if they ALREADY exist in users:
+         if (user) {
+           updateData((prev: any) => ({ ...prev, currentUser: user }));
+           navigate('/');
+         }
+         return;
+      }
+
+      // If Supabase check fails but they are an imported member
+      if (isLegacyMember) {
+        updateData((prev: any) => ({ ...prev, currentUser: user }));
+        navigate('/');
+        return;
+      }
+
       alert('Authentication Failed. Please check your credentials, or verify your email if you just registered.');
+    } catch (err: any) {
+      alert('Authentication Failed.');
     }
   };
 
