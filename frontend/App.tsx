@@ -17,8 +17,10 @@ import {
   Loader2
 } from 'lucide-react';
 
-import { UserRole } from './types';
+import { UserRole, TransactionType, PreRegistration } from './types';
 import { initialData, fetchAllData, persistToSupabase, PersistenceChange } from './store';
+import { supabase } from './supabase';
+import { MEMBERSHIP_FEE_UGX, AFFILIATE_REWARD_UGX } from './constants';
 
 // --- Components ---
 import Dashboard from './components/Dashboard';
@@ -186,6 +188,192 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (isLoading) return; // Wait for initial data load
+
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const existingUser = data.users.find((u: any) => u.email === session.user.email);
+        
+        if (!existingUser) {
+           const meta = session.user.user_metadata;
+           if (!meta || !meta.fullName) return; // Not signed up through our form
+
+           const userId = 'u-' + Date.now();
+           const walletId = 'w-' + Date.now();
+           const isFullyPaid = meta.isFullyPaid;
+           
+           const newUser = {
+             id: userId,
+             fullName: meta.fullName,
+             email: meta.email,
+             phone: meta.phone,
+             nin: meta.nin,
+             dob: meta.dob,
+             nextOfKinName: meta.nextOfKinName,
+             nextOfKinContact: meta.nextOfKinContact,
+             profession: meta.profession,
+             employer: meta.employer,
+             educationLevel: meta.educationLevel,
+             monthlyEarningsRange: meta.monthlyEarningsRange,
+             address: meta.address,
+             city: meta.city,
+             district: meta.district,
+             country: meta.country,
+             role: UserRole.MEMBER,
+             membershipPaid: isFullyPaid,
+             walletId: walletId,
+             affiliateCode: 'LADA-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
+             referredBy: meta.referralCode,
+             creditScore: 50,
+             createdAt: new Date().toISOString()
+           };
+
+           let initialBalance = meta.isPayingNow ? 0 : -MEMBERSHIP_FEE_UGX; 
+           let membershipTxAmount = -MEMBERSHIP_FEE_UGX;
+           
+           const persistenceTasks: PersistenceChange[] = [
+             { table: 'users', data: newUser }
+           ];
+
+           const prevPreRegistrations = data.preRegistrations || [];
+           const claimedPreReg = meta.claimedPreRegId 
+              ? prevPreRegistrations.find((pr: any) => pr.id === meta.claimedPreRegId) 
+              : null;
+
+           if (claimedPreReg) {
+             const surplus = claimedPreReg.amountPaid - MEMBERSHIP_FEE_UGX;
+             initialBalance = surplus;
+
+             const depositTx = {
+               id: 'tx-d-' + Date.now(),
+               walletId: walletId,
+               amount: claimedPreReg.amountPaid,
+               type: TransactionType.DEPOSIT,
+               description: 'Pre-registered External Payment',
+               createdAt: new Date(Date.now() - 1000).toISOString()
+             };
+
+             persistenceTasks.push({ table: 'transactions', data: depositTx });
+             persistenceTasks.push({ table: 'preRegistrations', data: { ...claimedPreReg, claimed: true } });
+           }
+
+           const newWallet = { id: walletId, userId: userId, balanceUGX: initialBalance };
+           persistenceTasks.push({ table: 'wallets', data: newWallet });
+
+           const membershipTx = {
+             id: 'tx-m-' + Date.now(),
+             walletId: walletId,
+             amount: membershipTxAmount,
+             type: TransactionType.MEMBERSHIP_FEE,
+             description: 'Membership Fee Payment',
+             createdAt: new Date().toISOString()
+           };
+           persistenceTasks.push({ table: 'transactions', data: membershipTx });
+
+           const referrer = meta.referralCode ? data.users.find((u: any) => u.affiliateCode === meta.referralCode) : null;
+           
+           if (referrer) {
+               const rewardTx = {
+                 id: 'tx-aff-' + Date.now(),
+                 walletId: referrer.walletId,
+                 amount: AFFILIATE_REWARD_UGX,
+                 type: TransactionType.AFFILIATE_REWARD,
+                 description: `Referral Reward for ${meta.fullName}`,
+                 createdAt: new Date().toISOString()
+               };
+               const rewardNotif = {
+                 id: 'not-aff-' + Date.now(),
+                 userId: referrer.id,
+                 type: 'referral',
+                 message: `You earned ${AFFILIATE_REWARD_UGX.toLocaleString()} UGX for referring ${meta.fullName}!`,
+                 read: false,
+                 createdAt: new Date().toISOString()
+               };
+               const updatedWallet = { ...data.wallets.find((w:any) => w.userId === referrer.id) };
+               updatedWallet.balanceUGX += AFFILIATE_REWARD_UGX;
+               persistenceTasks.push({ table: 'wallets', data: updatedWallet });
+               persistenceTasks.push({ table: 'transactions', data: rewardTx });
+               persistenceTasks.push({ table: 'notifications', data: rewardNotif });
+           }
+
+           handleUpdateData((prev: any) => {
+              let nextWallets = [...prev.wallets, newWallet];
+              let nextTransactions = [...prev.transactions, membershipTx];
+              let nextNotifications = [...prev.notifications];
+
+              if (claimedPreReg) {
+                 nextTransactions.push({
+                   id: 'tx-d-' + Date.now(),
+                   walletId: walletId,
+                   amount: claimedPreReg.amountPaid,
+                   type: TransactionType.DEPOSIT,
+                   description: 'Pre-registered External Payment',
+                   createdAt: new Date(Date.now() - 1000).toISOString()
+                 } as any);
+              }
+
+              if (referrer) {
+                  nextWallets = nextWallets.map((w: any) => {
+                    if (w.userId === referrer.id) {
+                      return { ...w, balanceUGX: w.balanceUGX + AFFILIATE_REWARD_UGX };
+                    }
+                    return w;
+                  });
+                  nextTransactions.push({
+                     id: 'tx-aff-' + Date.now(),
+                     walletId: referrer.walletId,
+                     amount: AFFILIATE_REWARD_UGX,
+                     type: TransactionType.AFFILIATE_REWARD,
+                     description: `Referral Reward for ${meta.fullName}`,
+                     createdAt: new Date().toISOString()
+                  } as any);
+                  nextNotifications.push({
+                     id: 'not-aff-' + Date.now(),
+                     userId: referrer.id,
+                     type: 'referral',
+                     message: `You earned ${AFFILIATE_REWARD_UGX.toLocaleString()} UGX for referring ${meta.fullName}!`,
+                     read: false,
+                     createdAt: new Date().toISOString()
+                  } as any);
+              }
+
+              return {
+                 ...prev,
+                 users: [...prev.users, newUser],
+                 wallets: nextWallets,
+                 transactions: nextTransactions,
+                 notifications: nextNotifications,
+                 currentUser: newUser,
+                 preRegistrations: prev.preRegistrations?.map((pr: any) =>
+                    pr.id === claimedPreReg?.id ? { ...pr, claimed: true } : pr
+                 ) || []
+              };
+           }, persistenceTasks);
+        } else if (!data.currentUser || data.currentUser.id !== existingUser.id) {
+           handleUpdateData((prev: any) => ({
+              ...prev,
+              currentUser: existingUser
+           }));
+        }
+      }
+    };
+
+    initAuth();
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+       if (event === 'SIGNED_IN') {
+           initAuth();
+       } else if (event === 'SIGNED_OUT') {
+           handleUpdateData((prev: any) => ({ ...prev, currentUser: null }));
+       }
+    });
+
+    return () => authListener.subscription.unsubscribe();
+  }, [isLoading]);
+
   const handleUpdateData = (updater: (prev: any) => any, persistenceInfo?: PersistenceChange | PersistenceChange[]) => {
     setData(prev => {
       const next = updater(prev);
@@ -196,7 +384,8 @@ const App: React.FC = () => {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setData(prev => ({ ...prev, currentUser: null }));
   };
 

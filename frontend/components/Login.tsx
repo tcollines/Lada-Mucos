@@ -44,7 +44,7 @@ const Login: React.FC<LoginProps> = ({ data, updateData }) => {
       }));
       navigate('/');
     } else {
-      alert('Authentication Failed. Please check your credentials.');
+      alert('Authentication Failed. Please check your credentials, or verify your email if you just registered.');
     }
   };
 

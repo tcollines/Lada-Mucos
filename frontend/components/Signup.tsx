@@ -5,6 +5,7 @@ import { ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Wallet, Users, Info, 
 import { UserRole, TransactionType, PreRegistration } from '../types';
 import { MEMBERSHIP_FEE_UGX, AFFILIATE_REWARD_UGX } from '../constants';
 import { PersistenceChange } from '../store';
+import { supabase } from '../supabase';
 
 interface SignupProps {
   data: any;
@@ -117,140 +118,41 @@ const Signup: React.FC<SignupProps> = ({ data, updateData }) => {
     }, 600);
   };
 
-  const handleFinalize = (isPayingNow: boolean = false) => {
-    const userId = 'u-' + Date.now();
-    const walletId = 'w-' + Date.now();
+  const handleFinalize = async (isPayingNow: boolean = false) => {
+    // We defer all DB inserts to App.tsx once they verified email.
+    // We store required flags in Supabase Auth user_metadata so App.tsx has it.
 
-    // If they chose Pay Later, and they don't have a claimed pre-reg that covers it, they are unpaid
     const isFullyPaid = isPayingNow || (claimedPreReg && claimedPreReg.amountPaid >= MEMBERSHIP_FEE_UGX);
 
-    const { referralCode, ...restFormData } = formData;
-    const newUser = {
+    const { password, ...restFormData } = formData;
+    const userMetadata = {
       ...restFormData,
-      id: userId,
-      role: UserRole.MEMBER,
-      membershipPaid: isFullyPaid,
-      walletId: walletId,
-      affiliateCode: 'LADA-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-      referredBy: referralCode,
-      creditScore: 50,
-      createdAt: new Date().toISOString()
+      isPayingNow,
+      isFullyPaid,
+      claimedPreRegId: claimedPreReg ? claimedPreReg.id : null,
+      amountPaid: claimedPreReg ? claimedPreReg.amountPaid : 0
     };
 
-    let initialBalance = isPayingNow ? 0 : -MEMBERSHIP_FEE_UGX; // If paying now, balance is 0 until payment succeeds. If paying later, debt.
-    let membershipTxAmount = -MEMBERSHIP_FEE_UGX;
-
-    const persistenceTasks: PersistenceChange[] = [
-      { table: 'users', data: newUser }
-    ];
-
-    if (claimedPreReg) {
-      const surplus = claimedPreReg.amountPaid - MEMBERSHIP_FEE_UGX;
-      initialBalance = surplus;
-
-      const depositTx = {
-        id: 'tx-d-' + Date.now(),
-        walletId: walletId,
-        amount: claimedPreReg.amountPaid,
-        type: TransactionType.DEPOSIT,
-        description: 'Pre-registered External Payment',
-        createdAt: new Date(Date.now() - 1000).toISOString()
-      };
-
-      persistenceTasks.push({ table: 'transactions', data: depositTx });
-      persistenceTasks.push({ table: 'preRegistrations', data: { ...claimedPreReg, claimed: true } });
-    }
-
-    const newWallet = { id: walletId, userId: userId, balanceUGX: initialBalance };
-    persistenceTasks.push({ table: 'wallets', data: newWallet });
-
-    const membershipTx = {
-      id: 'tx-m-' + Date.now(),
-      walletId: walletId,
-      amount: membershipTxAmount,
-      type: TransactionType.MEMBERSHIP_FEE,
-      description: 'Membership Fee Payment',
-      createdAt: new Date().toISOString()
-    };
-    persistenceTasks.push({ table: 'transactions', data: membershipTx });
-
-    updateData(prev => {
-      let nextWallets = [...prev.wallets, newWallet];
-      let nextTransactions = [...prev.transactions, membershipTx];
-      let nextNotifications = [...prev.notifications];
-
-      if (claimedPreReg) {
-        nextTransactions.push({
-          id: 'tx-d-' + Date.now(),
-          walletId: walletId,
-          amount: claimedPreReg.amountPaid,
-          type: TransactionType.DEPOSIT,
-          description: 'Pre-registered External Payment',
-          createdAt: new Date(Date.now() - 1000).toISOString()
-        } as any);
-      }
-
-      if (formData.referralCode) {
-        const referrer = prev.users.find((u: any) => u.affiliateCode === formData.referralCode);
-        if (referrer) {
-          const rewardTx = {
-            id: 'tx-aff-' + Date.now(),
-            walletId: referrer.walletId,
-            amount: AFFILIATE_REWARD_UGX,
-            type: TransactionType.AFFILIATE_REWARD,
-            description: `Referral Reward for ${formData.fullName}`,
-            createdAt: new Date().toISOString()
-          };
-          const rewardNotif = {
-            id: 'not-aff-' + Date.now(),
-            userId: referrer.id,
-            type: 'referral',
-            message: `You earned ${AFFILIATE_REWARD_UGX.toLocaleString()} UGX for referring ${formData.fullName}!`,
-            read: false,
-            createdAt: new Date().toISOString()
-          };
-
-          nextWallets = nextWallets.map((w: any) => {
-            if (w.userId === referrer.id) {
-              const updatedWallet = { ...w, balanceUGX: w.balanceUGX + AFFILIATE_REWARD_UGX };
-              persistenceTasks.push({ table: 'wallets', data: updatedWallet });
-              return updatedWallet;
-            }
-            return w;
-          });
-
-          nextTransactions.push(rewardTx);
-          nextNotifications.push(rewardNotif);
-          persistenceTasks.push({ table: 'transactions', data: rewardTx });
-          persistenceTasks.push({ table: 'notifications', data: rewardNotif });
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: userMetadata
         }
-      }
-
-      return {
-        ...prev,
-        users: [...prev.users, newUser],
-        wallets: nextWallets,
-        transactions: nextTransactions,
-        notifications: nextNotifications,
-        currentUser: newUser,
-        preRegistrations: prev.preRegistrations?.map((pr: PreRegistration) =>
-          pr.id === claimedPreReg?.id ? { ...pr, claimed: true } : pr
-        ) || []
-      };
-    }, persistenceTasks);
-
-    if (isPayingNow) {
-      // Pass the necessary payment details via state to the payment gateway
-      navigate('/payment', { 
-        state: { 
-          amount: MEMBERSHIP_FEE_UGX,
-          userId: userId,
-          walletId: walletId,
-          paymentReason: 'Membership Fee'
-        } 
       });
-    } else {
-      navigate('/');
+
+      if (error) {
+        alert("Signup failed: " + error.message);
+        return;
+      }
+      
+      if (showPaymentModal) {
+          setShowPaymentModal(false);
+      }
+      setStep(5);
+    } catch (err: any) {
+      alert("Error: " + err.message);
     }
   };
 
@@ -463,24 +365,46 @@ const Signup: React.FC<SignupProps> = ({ data, updateData }) => {
             </div>
           )}
 
-          <div className="mt-12 flex gap-4">
-            {step > 1 && (
-               <button
-                 onClick={handlePrev}
-                 className="flex-1 py-4 text-gray-300 font-bold hover:bg-white/10 hover:text-white rounded-2xl transition-all flex items-center justify-center gap-2 border border-white/10"
-               >
-                 <ArrowLeft size={18} />
-                 Back
-               </button>
-            )}
-            <button
-              onClick={step === 4 ? handleConfirmClick : handleNext}
-              className="flex-[2] bg-sac-green text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-[0_8px_20px_rgba(22,101,52,0.4)] hover:shadow-[0_12px_25px_rgba(22,101,52,0.6)] hover:-translate-y-1"
-            >
-              {step === 4 ? 'Confirm & Finalize' : 'Continue'}
-              <ArrowRight size={18} />
-            </button>
-          </div>
+          {step === 5 && (
+            <div className="space-y-8 animate-in zoom-in-95 duration-500 flex flex-col items-center justify-center text-center h-full">
+              <div className="w-24 h-24 bg-sac-green/20 border border-sac-green/30 text-sac-green rounded-full flex items-center justify-center mb-4 backdrop-blur-sm shadow-[0_0_40px_rgba(22,101,52,0.4)]">
+                <CheckCircle2 size={48} />
+              </div>
+              <h3 className="text-4xl font-extrabold tracking-tight text-white mb-2">Check Your Email</h3>
+              <p className="text-lg text-gray-300 max-w-md mx-auto leading-relaxed">
+                We've sent a verification link to <span className="text-[#4ade80] font-bold">{formData.email}</span>.
+              </p>
+              <div className="bg-white/5 p-6 rounded-2xl border border-white/10 mt-6 max-w-md w-full">
+                <p className="text-sm text-gray-400 mb-4">
+                  Please click the link in your email to securely activate your account and complete registration.
+                </p>
+                <p className="text-xs text-gray-500">
+                  Can't find the email? Check your spam or junk folder.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {step < 5 && (
+            <div className="mt-12 flex gap-4">
+              {step > 1 && (
+                 <button
+                   onClick={handlePrev}
+                   className="flex-1 py-4 text-gray-300 font-bold hover:bg-white/10 hover:text-white rounded-2xl transition-all flex items-center justify-center gap-2 border border-white/10"
+                 >
+                   <ArrowLeft size={18} />
+                   Back
+                 </button>
+              )}
+              <button
+                onClick={step === 4 ? handleConfirmClick : handleNext}
+                className="flex-[2] bg-sac-green text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-[0_8px_20px_rgba(22,101,52,0.4)] hover:shadow-[0_12px_25px_rgba(22,101,52,0.6)] hover:-translate-y-1"
+              >
+                {step === 4 ? 'Confirm & Finalize' : 'Continue'}
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-300">Already have an account? <Link to="/login" className="text-white hover:text-sac-green transition-colors font-bold underline decoration-sac-green decoration-2 underline-offset-4">Sign In</Link></p>
