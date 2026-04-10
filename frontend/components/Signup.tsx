@@ -97,13 +97,21 @@ const Signup: React.FC<SignupProps> = ({ data, updateData }) => {
       const found = data.preRegistrations?.find((pr: PreRegistration) => {
         if (pr.claimed) return false;
 
-        const prEmail = pr.email?.toLowerCase().trim() || '';
-        const prPhone = pr.phone?.trim() || '';
-        const prName = pr.name?.toLowerCase().trim() || '';
+        const normalize = (str: string | undefined | null) => (str || '').toLowerCase().replace(/\s+/g, '');
+        
+        const normEmail = normalize(formData.email);
+        const normPrEmail = normalize(pr.email);
+        const isEmailMatch = normEmail && normPrEmail && normPrEmail === normEmail;
 
-        const isEmailMatch = emailMatch && prEmail === emailMatch;
-        const isPhoneMatch = phoneMatch && prPhone === phoneMatch;
-        const isNameMatch = nameMatch && prName === nameMatch;
+        const normPhone = (formData.phone || '').replace(/\D/g, '');
+        const normPrPhone = (pr.phone || '').replace(/\D/g, '');
+        // Match if the last 7 digits match (ignores country codes like +256 vs 070)
+        const isPhoneMatch = normPhone.length >= 7 && normPrPhone.length >= 7 && normPrPhone.endsWith(normPhone.slice(-7));
+
+        const normName = normalize(formData.fullName);
+        const normPrName = normalize(pr.name);
+        // Sometimes names are rearranged (Doe John vs John Doe) so we check if they contain each other
+        const isNameMatch = normName && normPrName && (normPrName.includes(normName) || normName.includes(normPrName));
 
         return isEmailMatch || isPhoneMatch || isNameMatch;
       });
