@@ -371,6 +371,11 @@ const App: React.FC = () => {
     initAuth();
     
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+       if (event === 'PASSWORD_RECOVERY') {
+           // User clicked the reset link — send them to the reset page, do NOT log them in
+           window.location.href = '/reset-password';
+           return;
+       }
        if (event === 'SIGNED_IN') {
            initAuth();
        } else if (event === 'SIGNED_OUT') {

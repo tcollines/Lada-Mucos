@@ -97,8 +97,9 @@ const ResetPassword: React.FC = () => {
     if (error) {
       setUpdateError(error.message || 'Failed to update password. Please try again.');
     } else {
+      // Sign out the recovery session so user must log in fresh with new password
+      await supabase.auth.signOut();
       setUpdateSuccess(true);
-      // Redirect to login after 3 seconds
       setTimeout(() => navigate('/login'), 3000);
     }
   };
