@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { supabase } from '../supabase';
 
@@ -18,6 +18,7 @@ const slides = [
 const Login: React.FC<LoginProps> = ({ data, updateData }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
 
@@ -168,14 +169,31 @@ const Login: React.FC<LoginProps> = ({ data, updateData }) => {
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-sac-green transition-colors" size={18} />
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'}
                   required 
-                  className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl outline-none focus:ring-2 focus:ring-sac-green focus:border-transparent text-white placeholder-gray-400 font-medium backdrop-blur-sm transition-all" 
+                  className="w-full pl-12 pr-12 py-4 bg-white/10 border border-white/20 rounded-xl outline-none focus:ring-2 focus:ring-sac-green focus:border-transparent text-white placeholder-gray-400 font-medium backdrop-blur-sm transition-all" 
                   placeholder="Password" 
                   value={password} 
                   onChange={(e) => setPassword(e.target.value)} 
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
+            </div>
+
+            <div className="flex justify-end -mt-2">
+              <Link
+                to="/reset-password"
+                className="text-sm text-gray-300 hover:text-white transition-colors hover:underline underline-offset-4 decoration-sac-green"
+              >
+                Forgot Password?
+              </Link>
             </div>
 
             <button type="submit" className="w-full bg-sac-green text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-[0_8px_20px_rgba(22,101,52,0.4)] hover:shadow-[0_12px_25px_rgba(22,101,52,0.6)] hover:-translate-y-1">

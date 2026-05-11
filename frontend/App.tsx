@@ -35,10 +35,16 @@ import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import PaymentScreen from './components/PaymentScreen';
+import ResetPassword from './components/ResetPassword';
 
 const AuthRedirect = () => {
   const hash = window.location.hash;
   const search = window.location.search;
+
+  // Password recovery link — redirect to reset-password page
+  if (hash.includes('type=recovery')) {
+    return <Navigate to={`/reset-password${hash}`} replace />;
+  }
 
   if (hash.includes('type=invite') || hash.includes('access_token=')) {
     const hashParams = new URLSearchParams(hash.replace('#', '?').replace('?', '&'));
@@ -80,6 +86,7 @@ const AppContent: React.FC<{
         <Route path="/login" element={<Login data={data} updateData={handleUpdateData} />} />
         <Route path="/signup" element={<Signup data={data} updateData={handleUpdateData} />} />
         <Route path="/payment" element={<PaymentScreen updateData={handleUpdateData} />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<AuthRedirect />} />
       </Routes>
     );
