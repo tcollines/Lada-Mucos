@@ -39,14 +39,23 @@ const ResetPassword: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Detect Supabase recovery token in URL hash
+  // Detect Supabase recovery token in URL hash OR via active session
   useEffect(() => {
     const hash = window.location.hash;
+
+    // 1. Check URL hash directly (present immediately on page load)
     if (hash.includes('type=recovery') || hash.includes('access_token')) {
       setMode('update');
     }
 
-    // Also listen for the PASSWORD_RECOVERY auth event
+    // 2. Fallback: check if there's already an active recovery session
+    //    (Supabase clears the hash after processing, so we need this too)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setMode('update');
+    });
+
+    // 3. Listen for the PASSWORD_RECOVERY auth event (fires when Supabase
+    //    processes the token from the URL hash)
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setMode('update');

@@ -199,6 +199,15 @@ const App: React.FC = () => {
     if (isLoading) return; // Wait for initial data load
 
     const initAuth = async () => {
+      // ── Guard: never auto-login during a password recovery flow ──
+      // The recovery link puts #type=recovery in the URL hash.
+      // If we detect it here (before onAuthStateChange fires), bail out immediately.
+      const urlHash = window.location.hash;
+      const isRecoveryFlow =
+        urlHash.includes('type=recovery') ||
+        window.location.pathname === '/reset-password';
+      if (isRecoveryFlow) return;
+
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
@@ -372,11 +381,14 @@ const App: React.FC = () => {
     
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
        if (event === 'PASSWORD_RECOVERY') {
-           // User clicked the reset link — send them to the reset page, do NOT log them in
+           // User clicked the reset link — redirect to reset page, do NOT log them in
            window.location.href = '/reset-password';
            return;
        }
        if (event === 'SIGNED_IN') {
+           // Skip login if this SIGNED_IN was triggered by a recovery token
+           const hash = window.location.hash;
+           if (hash.includes('type=recovery') || window.location.pathname === '/reset-password') return;
            initAuth();
        } else if (event === 'SIGNED_OUT') {
            handleUpdateData((prev: any) => ({ ...prev, currentUser: null }));
